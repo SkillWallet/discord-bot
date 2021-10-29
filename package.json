@@ -1,0 +1,22 @@
+{
+  "name": "skillwallet-dicord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for SkillWallet",
+  "main": "bot/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node bot/index.js"
+  },
+  "bugs": {
+    "url": "https://github.com/SkillWallet/discord-bot"
+  },
+  "author": "DiTo Labs <team@distributed.town>",
+  "homepage": "https://skillwallet.id/",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^12.2.0",
+    "dotenv": "^8.2.0",
+    "qrcode": "^1.4.4",
+    "axios": "0.24.0"
+  }
+}
