@@ -4,9 +4,10 @@ var QRCode = require('qrcode')
 const bot = new Client();
 const TOKEN = process.env.TOKEN;
 const axios = require('axios');
-
+const { VoiceChannelsDetailsStorage } = require('./voiceEventsStorage')
 bot.login(TOKEN);
 const roleColors = ['BLUE', 'GREEN', 'PURPLE'];
+const voiceChannelEventsStorage = new VoiceChannelsDetailsStorage();
 
 const getDiscordConnectNonce = async () => {
   // TODO: change action!
@@ -21,6 +22,28 @@ const getCommunityDetails = async (key) => {
 bot.on('ready', () => {
   console.info(`Logged in as ${bot.user.tag}!`);
 });
+
+
+bot.on('voiceStateUpdate', async (oldState, newState) => {
+  const current = voiceChannelEventsStorage.get(newState.member.user.id);
+  if (!current) {
+    voiceChannelEventsStorage.add(newState.member.user.id, {
+      joinedTimestamp: newState.member.joinedTimestamp,
+      isMute: newState.mute,
+      isDeaf: newState.deaf,
+      isStreaming: newState.streaming,
+    });
+    console.log('stored new voice user');
+  } else {
+    voiceChannelEventsStorage.edit(newState.member.user.id, {
+      joinedTimestamp: current.joinedTimestamp,
+      isMute: newState.mute,
+      isDeaf: newState.deaf,
+      isStreaming: newState.streaming,
+    });
+  }
+});
+
 
 bot.on('message', async msg => {
   if (msg.content.startsWith('/add-roles')) {
@@ -50,5 +73,14 @@ bot.on('message', async msg => {
           { files: ["./qr.png"] });
       })
     );
+  }
+  if (msg.content === '/voice-chat-info') {
+    const userIds = voiceChannelEventsStorage.getUserIDs();
+    userIds.forEach(id => {
+      msg.reply(JSON.stringify(voiceChannelEventsStorage.get(id)));
+    });
+  }
+  if (msg.content === '/voice-chat-clear') {
+    voiceChannelEventsStorage.clear();
   }
 });
