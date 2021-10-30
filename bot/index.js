@@ -1,24 +1,23 @@
 require('dotenv').config();
-const { Client, RoleManager } = require('discord.js');
+
+// imports
 var QRCode = require('qrcode')
-const bot = new Client();
-const TOKEN = process.env.TOKEN;
-const axios = require('axios');
+const { Client } = require('discord.js');
 const { VoiceChannelsDetailsStorage } = require('./voiceEventsStorage')
-bot.login(TOKEN);
-const roleColors = ['BLUE', 'GREEN', 'PURPLE'];
+const { getCommunityDetails, getDiscordConnectNonce } = require('./api')
+
+// constants
+const ROLE_COLORS = ['BLUE', 'GREEN', 'PURPLE'];
+const TOKEN = process.env.TOKEN;
+
+
+// init
+const bot = new Client();
 const voiceChannelEventsStorage = new VoiceChannelsDetailsStorage();
 
-const getDiscordConnectNonce = async () => {
-  // TODO: change action!
-  const resp = await axios.post(`https://api.skillwallet.id/api/skillwallet/-1/nonces?action=1`);
-  return resp.data;
-}
-const getCommunityDetails = async (key) => {
-  const resp = await axios.get(`https://api.distributed.town/api/community/key/${key}`);
-  return resp.data;
-}
+bot.login(TOKEN);
 
+// events actions
 bot.on('ready', () => {
   console.info(`Logged in as ${bot.user.tag}!`);
 });
@@ -56,7 +55,7 @@ bot.on('message', async msg => {
         msg.guild.roles.create({
           data: {
             name: role,
-            color: roleColors[i],
+            color: ROLE_COLORS[i],
             mentionable: true
           },
           reason: "SkillWallet role"
