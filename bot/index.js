@@ -65,13 +65,7 @@ bot.on('message', async msg => {
     msg.reply(`${comDetails.roles} Roles added!`);
   }
   if (msg.content === '/connect-sw') {
-    getDiscordConnectNonce().then(res =>
-      QRCode.toFile("./qr.png", `{"discordID": "${msg.author.id}", "nonce": ${res.nonce}}`, function (err, url) {
-        msg.author.send(
-          "Scan this QR code with your mobile app to connect your SkillWallet ID to your discord!",
-          { files: ["./qr.png"] });
-      })
-    );
+    msg.reply(`Please follow this link https://discord.com/api/oauth2/authorize?client_id=898586559228551208&redirect_uri=http%3A%2F%2Flocalhost%3A3334&response_type=code&scope=identify`);
   }
   if (msg.content === '/voice-chat-info') {
     const userIds = voiceChannelEventsStorage.getUserIDs();
