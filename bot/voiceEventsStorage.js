@@ -1,32 +1,43 @@
+
 class VoiceChannelsDetailsStorage {
 
-    constructor() { 
-        this.voiceUsers = [];
-        this.userIDs = [];
+    constructor() {
+        this.guilds = {};
     }
 
-    add(userID, voiceUser) {
-        this.voiceUsers[userID] = voiceUser;
-        this.userIDs.push(userID);
+    add(guildID) {
+        this.guilds[guildID] = {
+            users: {}
+        }
     }
 
-    edit(userID, newUser) {
-        if (!this.voiceUsers[userID])
-            return;
-        this.voiceUsers[userID] = newUser;
+    addOrEditUserData(guildID, userID, userData) {
+        if (!this.guilds[guildID])
+            this.add(guildID);
+        let guild = this.guilds[guildID];
+        if (!guild) {
+            this.add(guildID);
+            guild = this.guilds[guildID];
+        }
+        this.guilds[guildID].users[userID] = userData;
+        return this.guilds[guildID].users[userID];
     }
 
-    clear() {
-        this.voiceUsers = [];
-        this.userIDs = [];
+    clearGuildData(guildID) {
+        this.guilds[guildID] = [];
     }
 
-    get(userID) {
-        return this.voiceUsers[userID];
+    getVoiceChannelData(guildID) {
+        if (!this.guilds[guildID])
+            this.add(guildID);
+        return this.guilds[guildID];
     }
-    
-    getUserIDs() {
-        return this.userIDs;
+
+    getUserVoiceChannelData(guildID, userID) {
+        if (!this.guilds[guildID])
+            this.add(guildID);
+
+        return this.guilds[guildID].users[userID];
     }
 }
 
