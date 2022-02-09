@@ -195,9 +195,6 @@ bot.on('message', async msg => {
   if (msg.content === '/voice-chat-clear') {
     voiceChannelEventsStorage.clear();
   }
-  if (msg.content === 'miguel') {
-    msg.reply('is an asshole')
-  }
 });
 
 function getPolls() {
