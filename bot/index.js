@@ -4,6 +4,7 @@ require('dotenv').config();
 const { Client, RichEmbed } = require('discord.js');
 const { VoiceChannelsDetailsStorage } = require('./voiceEventsStorage')
 const { getCommunityDetails } = require('./api')
+const axios = require('axios');
 const getEmojis = require('discordjs-getemojis');
 
 // constants
@@ -107,26 +108,22 @@ bot.on('voiceStateUpdate', async (oldState, newState) => {
 
 // message
 bot.on('message', async msg => {
-  console.log('message');
-  if (msg.content.startsWith('/setup')) {
+  if (msg.content.startsWith('/import-roles')) {
     const key = msg.content.split(' ')[1];
-    const comDetails = await getCommunityDetails(key);
-    comDetails.roles.forEach((role, i) => {
-      if (!msg.guild.roles.cache.find(role => role.name === role))
-        msg.guild.roles.create({
-          data: {
-            name: role,
-            color: ROLE_COLORS[i],
-            mentionable: true
-          },
-          reason: "SkillWallet role"
-        });
-    });
+    const { roles: { roles: commRoles } } = await getCommunityDetails(key);
 
-    msg.reply(`${comDetails.roles} Roles added!`);
-    // store guild <-> channel in a database.
-    const channelID = await msg.guild.channels.create('skill-wallet');
-    console.log(channelID.id);
+    commRoles.forEach(async (role, i) => {
+      if (!msg.guild.roles.find(r => r.name === role.roleName)) {
+        msg.guild.createRole({
+            name: role.roleName,
+            color: ROLE_COLORS[i],
+            mentionable: true,
+            reason: "SkillWallet role"
+        });
+
+        msg.reply(`${role.roleName} Role added!`);
+      } else console.warn(`EXISTING ROLE ------- ${role.roleName}`);
+    });
   }
   if (msg.content.startsWith('/post-poll')) {
 
