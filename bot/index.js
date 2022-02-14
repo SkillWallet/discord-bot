@@ -109,21 +109,24 @@ bot.on('voiceStateUpdate', async (oldState, newState) => {
 // message
 bot.on('message', async msg => {
   if (msg.content.startsWith('/import-roles')) {
+    let output = [];
     const key = msg.content.split(' ')[1];
-    const { roles: { roles: commRoles } } = await getCommunityDetails(key);
+    const { roles: { roles: communityRoles } } = await getCommunityDetails(key);
 
-    commRoles.forEach(async (role, i) => {
-      if (!msg.guild.roles.find(r => r.name === role.roleName)) {
+    communityRoles
+      .filter(role => !msg.guild.roles.find(r => r.name === role.roleName))
+      .forEach((role, i) => {
         msg.guild.createRole({
-            name: role.roleName,
-            color: ROLE_COLORS[i],
-            mentionable: true,
-            reason: "SkillWallet role"
-        });
+          name: role.roleName,
+          color: ROLE_COLORS[i],
+          mentionable: true,
+          reason: "SkillWallet role"
+      });
 
-        msg.reply(`${role.roleName} Role added!`);
-      } else console.warn(`EXISTING ROLE ------- ${role.roleName}`);
+      output.push(role.roleName);
     });
+
+    output.length ? output.length > 1 ? msg.reply(`${output} Roles added!`) : msg.reply(`${output} Role added!`) : msg.reply(`No new Roles were found.`)
   }
   if (msg.content.startsWith('/post-poll')) {
 
