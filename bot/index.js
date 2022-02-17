@@ -1,18 +1,17 @@
 require('dotenv').config();
 
 // imports
-const { Client, RichEmbed } = require('discord.js');
+const { Client, MessageEmbed, Intents } = require('discord.js');
 const { VoiceChannelsDetailsStorage } = require('./voiceEventsStorage')
 const { getCommunityDetails } = require('./api')
-const axios = require('axios');
-const getEmojis = require('discordjs-getemojis');
+const { config } = require('./config');
 
 // constants
-const ROLE_COLORS = ['BLUE', 'GREEN', 'PURPLE'];
+const { messages: { prefixes }, roles: { colors }, emojiRegex } = config;
 const TOKEN = process.env.TOKEN;
 
 // init
-const bot = new Client();
+const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS] });
 const voiceChannelEventsStorage = new VoiceChannelsDetailsStorage();
 
 bot.login(TOKEN);
@@ -107,8 +106,8 @@ bot.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 // message
-bot.on('message', async msg => {
-  if (msg.content.startsWith('/import-roles')) {
+bot.on('messageCreate', async msg => {
+  if (msg.content.startsWith(prefixes.importRoles)) {
     let output = [];
     const key = msg.content.split(' ')[1];
     const { roles: { roles: communityRoles } } = await getCommunityDetails(key);
@@ -118,7 +117,7 @@ bot.on('message', async msg => {
       .forEach((role, i) => {
         msg.guild.createRole({
           name: role.roleName,
-          color: ROLE_COLORS[i],
+          color: colors[i],
           mentionable: true,
           reason: "SkillWallet role"
       });
@@ -127,75 +126,78 @@ bot.on('message', async msg => {
     });
 
     output.length ? output.length > 1 ? msg.reply(`${output} Roles added!`) : msg.reply(`${output} Role added!`) : msg.reply(`No new Roles were found.`)
-  }
-  if (msg.content.startsWith('/post-poll')) {
-
-    // const channel = await msg.guild.channels.cache.get(channelSettings.channelID);
+  } else if (msg.content.startsWith(prefixes.postPoll)) {
     const polls = getPolls();
 
     polls.forEach(async poll => {
-
       const description = msg.content.replace('/post-poll ', '');
+      const emojis = extractEmojis(msg.content);
+      const pollContent = new MessageEmbed().setTitle(poll.title).setDescription(`${description}\nThis poll expires on ${poll.endDate}`);
 
-      const emojis = getEmojis(msg);
-
-      const pollContent = new RichEmbed().setTitle(poll.title).setDescription(`${description}\nThis poll expires on ${poll.endDate}`);
-
-      msg.channel.send({ embed: pollContent }) // Use a 2d array?
+      msg.channel.send({ embeds: [pollContent] }) // Use a 2d array?
         .then(async function (message) {
-          var reactionArray = [];
-          for (var i = 0; i < emojis.length; i++) {
+          let reactionArray = [];
+          for (let i = 0; i < emojis.length; i++) {
             reactionArray[i] = await message.react(emojis[i] === 'object' ? emojis[i].id : emojis[i]);
           }
 
           setTimeout(() => {
             // Re-fetch the message and get reaction counts
-            message.channel.fetchMessage(message.id)
-              .then(async function (message) {
-                var reactionCountsArray = [];
-                for (var i = 0; i < reactionArray.length; i++) {
+                let reactionCountsArray = [];
+                for (let i = 0; i < reactionArray.length; i++) {
                   console.log('reactions', i, reactionArray[i].count - 1);
                   reactionCountsArray[i] = reactionArray[i].count - 1;
                 }
 
                 // Find winner(s)
-                var max = -Infinity, indexMax = [];
-                for (var i = 0; i < reactionCountsArray.length; ++i)
+                let max = -Infinity, indexMax = [];
+                for (let i = 0; i < reactionCountsArray.length; ++i)
                   if (reactionCountsArray[i] > max) max = reactionCountsArray[i], indexMax = [i];
                   else if (reactionCountsArray[i] === max) indexMax.push(i);
 
                 console.log('indexMax', indexMax)
                 // Display winner(s)
-                var winnersText = "";
+                let winnersText = "";
                 if (reactionCountsArray[indexMax[0]] == 0) {
                   winnersText = "No one voted!"
                 } else {
-                  for (var i = 0; i < indexMax.length; i++) {
+                  for (let i = 0; i < indexMax.length; i++) {
                     console.log('winner emoji', i, emojis[i]);
-                    winnersText +=
-                      emojis[indexMax[i]] + " (" + reactionCountsArray[indexMax[i]] + " vote(s))\n";
+                    const customEmoji = msg.guild.emojis.cache.find(e => e.id === emojis[indexMax[i]]);
+                    const emoji = customEmoji ? `<:${customEmoji.name}:${customEmoji.id}>`: emojis[indexMax[i]];
+
+                    winnersText += emoji + " (" + reactionCountsArray[indexMax[i]] + " vote(s))\n";
                   }
                 }
                 pollContent.addField("**Winner(s):**", winnersText);
-                pollContent.setFooter(`The vote is now closed!`);
                 pollContent.setTimestamp();
-                msg.channel.send({ embed: pollContent })
-              });
+                msg.channel.send({ embeds: [pollContent] })
           }, new Date(poll.endDate) - Date.now() > 0 ? new Date(poll.endDate) - Date.now() : 10000);
         }).catch(console.error);
     })
-  }
-  if (msg.content === '/connect-sw') {
+  } else if (msg.content === prefixes.connectSW) {
     msg.reply(`Please follow this link https://discord.com/api/oauth2/authorize?client_id=898586559228551208&redirect_uri=http%3A%2F%2Flocalhost%3A3334&response_type=code&scope=identify`);
-  }
-  if (msg.content === '/get-voice-chat-data') {
+  } else if (msg.content === prefixes.getVoiceChatData) {
     const guildData = voiceChannelEventsStorage.getVoiceChannelData(msg.guild.id);
     msg.reply(JSON.stringify(guildData));
-  }
-  if (msg.content === '/voice-chat-clear') {
+  } else if (msg.content === prefixes.clearVoiceChat) {
     voiceChannelEventsStorage.clear();
   }
 });
+
+function extractEmojis(content) {
+  const customEmojis = getCustomEmojis(content);
+
+  return content.match(emojiRegex).concat(customEmojis);
+}
+
+function getCustomEmojis(content) {
+  const custom = content
+    .split(' ')
+    .filter(e => e.includes('<:') && e.includes('>'));
+
+  return custom.map(c=>c.split(':')[2].split('>')[0]);
+}
 
 function getPolls() {
   return [
