@@ -2,7 +2,8 @@ require('dotenv').config();
 
 // imports
 const { Client, MessageEmbed, Intents } = require('discord.js');
-const { VoiceChannelsDetailsStorage } = require('./voiceEventsStorage')
+const { joinVoiceChannel, entersState, VoiceConnectionStatus } = require('@discordjs/voice');
+const redis = require('redis');
 const { getCommunityDetails } = require('./api')
 const { config } = require('./config');
 
@@ -11,37 +12,61 @@ const { messages: { prefixes }, roles: { colors }, emojiRegex } = config;
 const TOKEN = process.env.TOKEN;
 
 // init
-const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS] });
-const voiceChannelEventsStorage = new VoiceChannelsDetailsStorage();
+const bot = new Client({
+  intents: [
+    Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Intents.FLAGS.GUILD_VOICE_STATES
+  ]
+});
+const redisClient = redis.createClient();
 
 bot.login(TOKEN);
+redisClient.connect();
 
 // events actions
 bot.on('ready', () => {
   console.info(`Logged in as ${bot.user.tag}!`);
+
+  joinChannel();
 });
 
+async function joinChannel() {
+  const channel = bot.channels.cache.get('945762562904055878')
+  const connection = joinVoiceChannel(
+    {
+      channelId: channel.id,
+      guildId: channel.guild.id,
+      adapterCreator: channel.guild.voiceAdapterCreator,
+      selfDeaf: false,
+      selfMute: false
+    });
+    try {
+      await entersState(connection, VoiceConnectionStatus.Ready, 30e3);
+      return connection;
+    } catch (error) {
+      connection.destroy();
+      throw error;
+    }
+
+}
 // voice state update
 bot.on('voiceStateUpdate', async (oldState, newState) => {
-
   console.log('voiceStateUpdate');
-  console.log('oldState', oldState.voiceChannel);
-  console.log('newState', newState.voiceChannel);
-  let currentData = voiceChannelEventsStorage.getUserVoiceChannelData(newState.guild.id, newState.user.id);
-  if (!currentData)
+  let currentData = await redisClient.hGet(newState.id);
+  if (!currentData) {
     currentData = {
       tokenId: 1,
       joinedTimestamp: Date.now(),
       totalTimeInTheCall: 0,
 
       isMute: newState.selfMute,
-      totalUnmuttedTime: 0,
-      lastTimeUnmuted: newState.selfMute ? undefined : Date.now(),
-
-      isStreaming: newState.selfStream,
-      lastTimeStreaming: newState.selfStream ? Date.now() : undefined,
+      totalUnmutedTime: 0,
+      lastTimeUnmuted: newState.selfMute ? 'selfMute' : Date.now(),
+      // need to set something other than undefined when user is muted
+      isStreaming: newState.streaming,
+      lastTimeStreaming: newState.streaming ? Date.now() : 'noStream',
       totalStreamingTime: 0
     }
+  }
   let guildUserData;
   if (newState.voiceChannel) {
     guildUserData = {
@@ -51,23 +76,23 @@ bot.on('voiceStateUpdate', async (oldState, newState) => {
 
       isMute: newState.selfMute,
 
-      totalUnmuttedTime: !currentData.isMute && newState.selfMute ?
-        currentData.totalUnmuttedTime + (currentData.lastTimeUnmuted ? new Date() - new Date(currentData.lastTimeUnmuted) : 0) :
-        currentData.totalUnmuttedTime,
+      totalUnmutedTime: !currentData.isMute && newState.selfMute ?
+        currentData.totalUnmutedTime + (currentData.lastTimeUnmuted ? new Date() - new Date(currentData.lastTimeUnmuted) : 0) :
+        currentData.totalUnmutedTime,
 
       lastTimeUnmuted:
         currentData.isMute && !newState.selfMute ?
           Date.now() :
           currentData.lastTimeUnmuted,
 
-      isStreaming: newState.selfStream,
+      isStreaming: newState.streaming,
 
       totalStreamingTime: currentData.isStreaming && !newState.isStreaming ?
         currentData.totalStreamingTime + (currentData.lastTimeStreaming ? new Date() - new Date(currentData.lastTimeStreaming) : 0) :
         currentData.totalStreamingTime,
 
       lastTimeStreaming:
-        !currentData.isStreaming && newState.selfStream ?
+        !currentData.isStreaming && newState.streaming ?
           Date.now() :
           currentData.lastTimeStreaming,
     }
@@ -81,16 +106,16 @@ bot.on('voiceStateUpdate', async (oldState, newState) => {
       totalTimeInTheCall: currentData.totalTimeInTheCall + (Date.now() - currentData.joinedTimestamp),
       isMute: newState.selfMute,
 
-      totalUnmuttedTime: !currentData.isMute ?
-        currentData.totalUnmuttedTime + (currentData.lastTimeUnmuted ? new Date() - new Date(currentData.lastTimeUnmuted) : 0) :
-        currentData.totalUnmuttedTime,
+      totalUnmutedTime: !currentData.isMute ?
+        currentData.totalUnmutedTime + (currentData.lastTimeUnmuted ? new Date() - new Date(currentData.lastTimeUnmuted) : 0) :
+        currentData.totalUnmutedTime,
 
       lastTimeUnmuted:
         !currentData.isMute ?
           Date.now() :
           currentData.lastTimeUnmuted,
 
-      isStreaming: newState.selfStream,
+      isStreaming: newState.streaming,
 
       totalStreamingTime: currentData.isStreaming ?
         currentData.totalStreamingTime + (currentData.lastTimeStreaming ? new Date() - new Date(currentData.lastTimeStreaming) : 0) :
@@ -102,7 +127,8 @@ bot.on('voiceStateUpdate', async (oldState, newState) => {
           currentData.lastTimeStreaming,
     }
   }
-  voiceChannelEventsStorage.addOrEditUserData(newState.guild.id, newState.user.id, guildUserData);
+
+  redisClient.hSet(newState.id, guildUserData);
 });
 
 // message
