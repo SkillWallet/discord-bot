@@ -17,7 +17,10 @@ const bot = new Client({
     Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Intents.FLAGS.GUILD_VOICE_STATES
   ]
 });
-const redisClient = redis.createClient();
+
+const redisClient = redis.createClient({
+  url: 'redis://:@redis:6379'
+});
 
 bot.login(TOKEN);
 redisClient.connect();
