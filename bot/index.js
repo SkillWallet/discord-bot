@@ -205,7 +205,7 @@ bot.on('messageCreate', async msg => {
         }).catch(console.error);
     })
   } else if (msg.content === prefixes.connectSW) {
-    msg.reply(`Please follow this link https://discord.com/api/oauth2/authorize?client_id=898586559228551208&redirect_uri=http%3A%2F%2Flocalhost%3A3334&response_type=code&scope=identify`);
+    msg.reply(`Please follow this link https://discord.com/api/oauth2/authorize?client_id=898586559228551208&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fredirect&response_type=code&scope=identify`);
   } else if (msg.content === prefixes.getVoiceChatData) {
     const guildData = voiceChannelEventsStorage.getVoiceChannelData(msg.guild.id);
     msg.reply(JSON.stringify(guildData));
