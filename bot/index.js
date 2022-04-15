@@ -6,6 +6,13 @@ const { joinVoiceChannel, entersState, VoiceConnectionStatus } = require('@disco
 const redis = require('redis');
 const { getCommunityDetails } = require('./api')
 const { config } = require('./config');
+const express = require('express');
+
+const app = express();
+
+app.post('/poll', () => postPoll);
+app.listen(4005, () => console.warn('Listening'));
+
 
 // constants
 const { messages: { prefixes }, roles: { colors }, emojiRegex } = config;
@@ -250,6 +257,13 @@ function getPolls() {
   ]
 }
 
+function postPoll(req, res) {
+  // get poll data
+
+  // create poll
+
+  // bot post poll
+}
 
 function getCommunityCalls() {
   return [
