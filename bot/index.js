@@ -193,29 +193,11 @@ async function postPoll(req, res) {
   res.sendStatus(200);
   const channel = await bot.channels.cache.find((c) => c.name == "general");
   // get poll data
-  const poll = {
-    title: "Do you want us to implement Polls?",
-    description: "Everyone from a specific role would be able to vote to achieve truly decentralized communities!",
-    options: ["Yes 👍", "No 👎"],
-    emojis: ["👍", "👎"],
-    duration: "1d5h",
-    role: 1,
-    roleName: "Tech",
-    activityAddress: "0x...",
-    activityId: 2,
-  };
-
-  const options = poll.options.join('\n');
-  // create poll
-  const pollContent = new MessageEmbed()
-    .setTitle(poll.title)
-    .setDescription(
-      `${poll.description}\n\n${options}\n\nThis poll expires in ${poll.duration}\nRoles: ${poll.roleName}`
-    );
+  const poll = req.body;
 
   // bot post poll
   channel
-    .send({ embeds: [pollContent] }) // Use a 2d array?
+    .send({ embeds: [req.body.message] }) // Use a 2d array?
     .then(async function (message) {
       let reactionArray = [];
       for (let i = 0; i < poll.emojis.length; i++) {
