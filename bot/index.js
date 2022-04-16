@@ -11,8 +11,10 @@ const redis = require("redis");
 const { getCommunityDetails } = require("./api");
 const { config } = require("./config");
 const express = require("express");
+var cors = require('cors')
 
 const app = express();
+app.use(cors())
 
 app.post("/poll", (req, res) => postPoll(req, res));
 
