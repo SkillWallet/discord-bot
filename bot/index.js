@@ -16,8 +16,8 @@ const app = express();
 
 app.post("/poll", (req, res) => postPoll(req, res));
 
-app.listen(4005, () => {
-  console.log(`Example app listening on port 4005`);
+app.listen(6005, () => {
+  console.log(`Example app listening on port 6005`);
 });
 
 // constants
@@ -194,10 +194,10 @@ async function postPoll(req, res) {
   const channel = await bot.channels.cache.find((c) => c.name == "general");
   // get poll data
   const poll = {
-    title: "asd",
-    description: "asdad",
-    options: ["asdasd", "asdasda"],
-    emojis: ["👎", "👍"],
+    title: "Do you want us to implement Polls?",
+    description: "Everyone from a specific role would be able to vote to achieve truly decentralized communities!",
+    options: ["Yes 👍", "No 👎"],
+    emojis: ["👍", "👎"],
     duration: "1d5h",
     role: 1,
     roleName: "Tech",
@@ -205,11 +205,12 @@ async function postPoll(req, res) {
     activityId: 2,
   };
 
+  const options = poll.options.join('\n');
   // create poll
   const pollContent = new MessageEmbed()
     .setTitle(poll.title)
     .setDescription(
-      `${poll.description}\nThis poll expires in ${poll.duration}`
+      `${poll.description}\n\n${options}\n\nThis poll expires in ${poll.duration}\nRoles: ${poll.roleName}`
     );
 
   // bot post poll
@@ -261,7 +262,6 @@ async function postPoll(req, res) {
           ? new Date(poll.endDate) - Date.now()
           : 10000
       );
-      return res.status(200);
     })
     .catch(console.error);
 }

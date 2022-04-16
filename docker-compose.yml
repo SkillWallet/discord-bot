@@ -18,7 +18,7 @@ services:
       - .:/app
     working_dir: /app
     ports:
-      - "4005:4005"
+      - "6005:6005"
     command: /bin/bash -c 'yarn; yarn start;'
     networks:
       - skill-wallet-bot
