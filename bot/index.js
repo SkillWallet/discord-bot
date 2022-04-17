@@ -12,9 +12,11 @@ const { getCommunityDetails } = require("./api");
 const { config } = require("./config");
 const express = require("express");
 var cors = require('cors')
+const bodyParser = require('body-parser');
 
 const app = express();
 app.use(cors())
+app.use(bodyParser.urlencoded({ extended: true }));
 
 app.post("/poll", (req, res) => postPoll(req, res));
 
@@ -192,11 +194,31 @@ bot.on("messageCreate", async (msg) => {
 });
 
 async function postPoll(req, res) {
+  console.log(req.body);
   res.sendStatus(200);
   const channel = await bot.channels.cache.find((c) => c.name == "general");
   // get poll data
-  const poll = req.body;
 
+  const poll = req.body;
+  // const poll = {
+  //   title: "Do you want us to implement Polls?",
+  //   description: "Everyone from a specific role would be able to vote to achieve truly decentralized communities!",
+  //   options: ["Yes 👍", "No 👎"],
+  //   emojis: ["👍", "👎"],
+  //   duration: "1d5h",
+  //   role: 1,
+  //   roleName: "Tech",
+  //   activityAddress: "0x...",
+  //   activityId: 2,
+  // };
+
+  const options = poll.options.join('\n');
+  // create poll
+  const pollContent = new MessageEmbed()
+    .setTitle(poll.title)
+    .setDescription(
+      `${poll.description}\n\n${options}\n\nThis poll expires in ${poll.duration}\nRoles: ${poll.roleName}`
+    );
   // bot post poll
   channel
     .send({ embeds: [req.body.message] }) // Use a 2d array?
