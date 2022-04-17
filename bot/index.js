@@ -215,6 +215,7 @@ async function postPoll(req, res) {
 
   const options = poll.options.join('\n');
   // create poll
+
   const pollContent = new MessageEmbed()
     .setTitle(poll.title)
     .setDescription(
@@ -222,7 +223,7 @@ async function postPoll(req, res) {
     );
   // bot post poll
   channel
-    .send({ embeds: [req.body.message] }) // Use a 2d array?
+    .send({ embeds: [pollContent] }) // Use a 2d array?
     .then(async function (message) {
       let reactionArray = [];
       for (let i = 0; i < poll.emojis.length; i++) {
