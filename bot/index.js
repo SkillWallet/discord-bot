@@ -11,17 +11,26 @@ const redis = require("redis");
 const { getCommunityDetails } = require("./api");
 const { config } = require("./config");
 const express = require("express");
-var cors = require('cors')
-const bodyParser = require('body-parser');
+var cors = require("cors");
+const bodyParser = require("body-parser");
+const {
+  getGuildPerCommunity,
+  getGuildPerKey,
+  addGuild,
+  insertPoll,
+  getAllPolls,
+} = require("./mongo.db");
+const { connect } = require("mongoose");
 
 const app = express();
-app.use(cors())
+app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 app.post("/poll", (req, res) => postPoll(req, res));
 
 app.listen(6005, () => {
+  connect("mongodb://localhost:27017/bot");
   console.log(`Example app listening on port 6005`);
 });
 
@@ -53,7 +62,7 @@ bot.login(TOKEN);
 bot.on("ready", () => {
   console.info(`Logged in as ${bot.user.tag}!`);
 
-  joinChannel();
+  // joinChannel();
 });
 
 // voice state update
@@ -160,12 +169,15 @@ bot.on("messageCreate", async (msg) => {
     const key = msg.content.split(" ")[1];
     const {
       roles: { roles: communityRoles },
+      address,
     } = await getCommunityDetails(key);
-
     communityRoles
-      .filter((role) => !msg.guild.roles.find((r) => r.name === role.roleName))
+      .filter(
+        (role) => !msg.guild.roles.cache.find((r) => r.name === role.roleName)
+      )
       .forEach((role, i) => {
-        msg.guild.createRole({
+        console.log(role);
+        msg.guild.roles.create({
           name: role.roleName,
           color: colors[i],
           mentionable: true,
@@ -174,6 +186,8 @@ bot.on("messageCreate", async (msg) => {
 
         output.push(role.roleName);
       });
+
+    addGuild(msg.guildId, key, address);
 
     output.length
       ? output.length > 1
@@ -197,31 +211,23 @@ bot.on("messageCreate", async (msg) => {
 async function postPoll(req, res) {
   console.log(req.body);
   res.sendStatus(200);
-  const channel = await bot.channels.cache.find((c) => c.name == "general");
+  const community = req.body.communityAddress;
+  const guildId = await getGuildPerCommunity(community);
+  console.log("guild", guildId);
+  console.log(bot.guilds.cache);
+
+  const guild = await bot.guilds.cache.find((guild) => guild.id == guildId);
+  const channel = guild.channels.cache.find((c) => c.name == "general");
   // get poll data
-
   const poll = req.body;
-  // const poll = {
-  //   title: "Do you want us to implement Polls?",
-  //   description: "Everyone from a specific role would be able to vote to achieve truly decentralized communities!",
-  //   options: ["Yes 👍", "No 👎"],
-  //   emojis: ["👍", "👎"],
-  //   duration: "1d5h",
-  //   role: 1,
-  //   roleName: "Tech",
-  //   activityAddress: "0x...",
-  //   activityId: 2,
-  // };
 
-  const options = poll.options.join('\n');
-  // create poll
-
+  // publish a poll
+  const options = poll.options.join("\n");
   const pollContent = new MessageEmbed()
     .setTitle(poll.title)
     .setDescription(
       `${poll.description}\n\n${options}\n\nThis poll expires in ${poll.duration}\nRoles: ${poll.roleName}`
     );
-  // bot post poll
   channel
     .send({ embeds: [pollContent] }) // Use a 2d array?
     .then(async function (message) {
@@ -229,50 +235,67 @@ async function postPoll(req, res) {
       for (let i = 0; i < poll.emojis.length; i++) {
         reactionArray[i] = await message.react(poll.emojis[i]);
       }
-      setTimeout(
-        () => {
-          // Re-fetch the message and get reaction counts
-          let reactionCountsArray = [];
-          for (let i = 0; i < reactionArray.length; i++) {
-            reactionCountsArray[i] = reactionArray[i].count - 1;
-          }
 
-          // Find winner(s)
-          let max = -Infinity,
-            indexMax = [];
-          for (let i = 0; i < reactionCountsArray.length; ++i)
-            if (reactionCountsArray[i] > max)
-              (max = reactionCountsArray[i]), (indexMax = [i]);
-            else if (reactionCountsArray[i] === max) indexMax.push(i);
-
-          // Display winner(s)
-          let winnersText = "";
-          if (reactionCountsArray[indexMax[0]] == 0) {
-            winnersText = "No one voted!";
-          } else {
-            for (let i = 0; i < indexMax.length; i++) {
-              const customEmoji = message.guild.emojis.cache.find(
-                (e) => e.id === poll.emojis[indexMax[i]]
-              );
-              const emoji = customEmoji
-                ? `<:${customEmoji.name}:${customEmoji.id}>`
-                : poll.emojis[indexMax[i]];
-
-              winnersText +=
-                emoji + " (" + reactionCountsArray[indexMax[i]] + " vote(s))\n";
-            }
-          }
-          pollContent.addField("**Winner(s):**", winnersText);
-          pollContent.setTimestamp();
-          channel.send({ embeds: [pollContent] });
-        },
-        new Date(poll.endDate) - Date.now() > 0
-          ? new Date(poll.endDate) - Date.now()
-          : 10000
+      insertPoll(
+        guildId,
+        channel.id,
+        message.id,
+        Date.now(),
+        poll.emojis,
+        poll.activitiesAddress,
+        poll.activityId
       );
     })
     .catch(console.error);
 }
+async function closePolls() {
+  console.log("closePolls");
+  // setInterval(
+  // async () => {
+  // Re-fetch the message and get reaction counts
+  const polls = await getAllPolls();
+  polls.forEach(async (poll) => {
+    const guild = await bot.guilds.fetch(poll.guildID);
+    console.log(poll.guildID);
+    console.log(guild ? "guild found" : "no guild");
+    const channel = await guild.channels.fetch(poll.channelID);
+
+    const message = await channel.messages.fetch(poll.messageID);
+
+    let reactionWinnerCount = -1;
+    let reactionWinnerIndex = 0;
+    for (let i = 0; i < poll.emojis.length; i++) {
+      if (
+        reactionWinnerCount < message.reactions.resolve(poll.emojis[i]).count
+      ) {
+        reactionWinnerCount = message.reactions.resolve(poll.emojis[i]).count;
+        reactionWinnerIndex = i;
+      }
+    }
+
+    const pollContent = message.embeds[0];
+
+    console.log('reactionWinnerCount', reactionWinnerCount);
+    console.log('reactionWinnerIndex', reactionWinnerIndex);
+    console.log(poll.emojis[reactionWinnerIndex]);
+
+    let winnersText;
+    if (reactionWinnerCount == 1) {
+      winnersText = "No one voted!";
+    } else {
+      winnersText =
+        poll.emojis[reactionWinnerIndex] +
+        " (" +
+        (reactionWinnerCount - 1) +
+        " vote(s))\n";
+    }
+    pollContent.addField("**Winner:**", winnersText);
+    pollContent.setTimestamp();
+    channel.send({ embeds: [pollContent] });
+  });
+}
+closePolls()
+// setInterval(() => closePolls(), 2000);
 
 async function joinChannel() {
   const channel = bot.channels.cache.get("945762562904055878");

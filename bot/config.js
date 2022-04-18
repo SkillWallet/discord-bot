@@ -2,15 +2,14 @@ module.exports = {
   config: {
     messages: {
       prefixes: {
-        importRoles: '/import-roles',
-        postPoll: '/post-poll',
+        importRoles: '/setup',
         connectSW: '/connect-sw',
         getVoiceChatData: '/get-voice-chat-data',
         clearVoiceChat: '/voice-chat-clear',
       }
     },
     roles: {
-      colors: ['BLUE', 'GREEN', 'PURPLE'],
+      colors: ['BLUE', 'GREEN', 'PURPLE', 'DARK_AQUA', 'DARK_VIVID_PINK','DARK_RED'],
     },
   }
 }
