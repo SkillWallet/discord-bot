@@ -8,7 +8,14 @@ const {
   VoiceConnectionStatus,
 } = require("@discordjs/voice");
 const redis = require("redis");
-const { getCommunityDetails } = require("./api");
+const {
+  getRole,
+  getCommunityDetails,
+  finalizeActivity,
+  getSkillWalletsPerCommunity,
+  getDiscordID,
+  getCommunityFromActivities,
+} = require("./api");
 const { config } = require("./config");
 const express = require("express");
 var cors = require("cors");
@@ -19,6 +26,7 @@ const {
   addGuild,
   insertPoll,
   getAllPolls,
+  deletePoll,
 } = require("./mongo.db");
 const { connect } = require("mongoose");
 
@@ -61,7 +69,7 @@ bot.login(TOKEN);
 // events actions
 bot.on("ready", () => {
   console.info(`Logged in as ${bot.user.tag}!`);
-
+  closePolls();
   // joinChannel();
 });
 
@@ -236,65 +244,106 @@ async function postPoll(req, res) {
         reactionArray[i] = await message.react(poll.emojis[i]);
       }
 
+      const date = new Date();
+      let daysToAdd = 0;
+
+      switch (poll.duration) {
+        case "1d":
+          daysToAdd = 1;
+          break;
+        case "1w":
+          daysToAdd = 7;
+          break;
+        case "1m":
+          daysToAdd = 30;
+          break;
+      }
+      var endDate = date.setDate(date.getDate() + daysToAdd);
+
       insertPoll(
         guildId,
         channel.id,
         message.id,
-        Date.now(),
+        endDate,
         poll.emojis,
         poll.activitiesAddress,
-        poll.activityId
+        poll.activityId,
+        poll.role
       );
     })
     .catch(console.error);
 }
 async function closePolls() {
   console.log("closePolls");
-  // setInterval(
-  // async () => {
-  // Re-fetch the message and get reaction counts
+
   const polls = await getAllPolls();
   polls.forEach(async (poll) => {
-    const guild = await bot.guilds.fetch(poll.guildID);
-    console.log(poll.guildID);
-    console.log(guild ? "guild found" : "no guild");
-    const channel = await guild.channels.fetch(poll.channelID);
+    if (poll.endDate < Date.now()) {
+      const guild = await bot.guilds.fetch(poll.guildID);
+      console.log(poll.guildID);
+      console.log(guild ? "guild found" : "no guild");
+      const channel = await guild.channels.fetch(poll.channelID);
 
-    const message = await channel.messages.fetch(poll.messageID);
+      const message = await channel.messages.fetch(poll.messageID);
 
-    let reactionWinnerCount = -1;
-    let reactionWinnerIndex = 0;
-    for (let i = 0; i < poll.emojis.length; i++) {
-      if (
-        reactionWinnerCount < message.reactions.resolve(poll.emojis[i]).count
-      ) {
-        reactionWinnerCount = message.reactions.resolve(poll.emojis[i]).count;
-        reactionWinnerIndex = i;
+      let reactionWinnerCount = -1;
+      let reactionWinnerIndex = 0;
+      for (let i = 0; i < poll.emojis.length; i++) {
+        const communityAddr = await getCommunityFromActivities(
+          poll.activitiesAddress
+        );
+
+        const relevantDiscordIds = await getRelevantDiscordIDs(
+          communityAddr,
+          poll.role
+        );
+        console.log('relevantDiscordIds', relevantDiscordIds);
+        const userReactionsMapping = await message.reactions.resolve(poll.emojis[i]).users.fetch();
+        var reactedUserIds = Array.from(userReactionsMapping.keys());
+        const relevantReactions = reactedUserIds.filter(value => relevantDiscordIds.includes(value));
+
+        if (
+          reactionWinnerCount < relevantReactions.length
+        ) {
+          reactionWinnerCount = relevantReactions.length;
+          reactionWinnerIndex = i;
+        }
+
+        // finalize activity onchain
+        await finalizeActivity(
+          poll.activitiesAddress,
+          poll.activityId,
+          [],
+          poll.emojis[reactionWinnerIndex],
+          reactionWinnerCount
+        );
       }
+
+      // close Poll
+      const pollContent = message.embeds[0];
+
+      console.log("reactionWinnerCount", reactionWinnerCount);
+      console.log("reactionWinnerIndex", reactionWinnerIndex);
+      console.log(poll.emojis[reactionWinnerIndex]);
+
+      let winnersText;
+      if (reactionWinnerCount == 1) {
+        winnersText = "No one voted!";
+      } else {
+        winnersText =
+          poll.emojis[reactionWinnerIndex] +
+          " (" +
+          (reactionWinnerCount) +
+          " vote(s))\n";
+      }
+      pollContent.addField("**Winner:**", winnersText);
+      pollContent.setTimestamp();
+      channel.send({ embeds: [pollContent] });
+
+      deletePoll(poll._id);
     }
-
-    const pollContent = message.embeds[0];
-
-    console.log('reactionWinnerCount', reactionWinnerCount);
-    console.log('reactionWinnerIndex', reactionWinnerIndex);
-    console.log(poll.emojis[reactionWinnerIndex]);
-
-    let winnersText;
-    if (reactionWinnerCount == 1) {
-      winnersText = "No one voted!";
-    } else {
-      winnersText =
-        poll.emojis[reactionWinnerIndex] +
-        " (" +
-        (reactionWinnerCount - 1) +
-        " vote(s))\n";
-    }
-    pollContent.addField("**Winner:**", winnersText);
-    pollContent.setTimestamp();
-    channel.send({ embeds: [pollContent] });
   });
 }
-closePolls()
 // setInterval(() => closePolls(), 2000);
 
 async function joinChannel() {
@@ -313,4 +362,21 @@ async function joinChannel() {
     connection.destroy();
     throw error;
   }
+}
+
+async function getRelevantDiscordIDs(communityAddr, role) {
+  const allMembers = await getSkillWalletsPerCommunity(communityAddr);
+  const relevantDiscordIds = [];
+
+  for (let i = 0; i < allMembers.length; i++) {
+    if (role != 0) {
+      const userRole = await getRole(allMembers[i]);
+      if (userRole.toString() == role.toString()) {
+        const discordId = await getDiscordID(allMembers[i]);
+        relevantDiscordIds.push(discordId.toString());
+      }
+    }
+  }
+
+  return relevantDiscordIds;
 }

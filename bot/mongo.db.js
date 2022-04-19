@@ -15,7 +15,8 @@ const Poll = new Schema({
   endDate: { type: String },
   emojis: { type: Array },
   activitiesAddress: { type: String },
-  activityId: { type: String }
+  activityId: { type: String },
+  role: { type: String },
 });
 
 const PollModel = model("Poll", Poll);
@@ -25,7 +26,7 @@ const getAllPolls = async () => {
   return polls;
 };
 
-const insertPoll = async (guildID, channelID, messageID, endDate, emojis, activitiesAddress, activityId) => {
+const insertPoll = async (guildID, channelID, messageID, endDate, emojis, activitiesAddress, activityId, role) => {
   const guild = new PollModel({
     guildID,
     channelID,
@@ -33,7 +34,8 @@ const insertPoll = async (guildID, channelID, messageID, endDate, emojis, activi
     endDate,
     emojis,
     activitiesAddress, 
-    activityId
+    activityId,
+    role
   });
 
   return guild.save();}
