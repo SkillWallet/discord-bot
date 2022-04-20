@@ -5,7 +5,6 @@ module.exports = {
         swHelp: '/sw-help',
         importRoles: '/setup',
         connectSW: '/connect-sw',
-        setupKey: '/setup {key}',
         getVoiceChatData: '/get-voice-chat-data',
         clearVoiceChat: '/voice-chat-clear',
       }

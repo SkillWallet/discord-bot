@@ -99,16 +99,15 @@ bot.on("messageCreate", async (msg) => {
     const reply = new MessageEmbed()
       .setTitle("Help")
       .addField(
-        "/setup",
-        `The first thing you need to do is enter \`/setup\`
-        to import all your community roles, otherwise the bot will not work.`
+        "/setup {key}",
+        `The first thing you need to do is enter \`/setup {key}\` with a *key* parameter
+        to connect your discord server and community, otherwise the bot will not work.`
       )
       .addField(
         "/connect-sw",
         `Each SkillWallet holder in the community should connect their SkillWallet by
         entering \`/connect-sw\` so they can vote in polls and receive interactions.`
-      )
-      .addField("/setup {key}", `Not sure what this does.`);
+      );
 
     msg.channel.send({ embeds: [reply] });
   }
