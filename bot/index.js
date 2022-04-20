@@ -3,12 +3,6 @@ require("dotenv").config();
 // imports
 const { Client, MessageEmbed, Intents } = require("discord.js");
 const {
-  joinVoiceChannel,
-  entersState,
-  VoiceConnectionStatus,
-} = require("@discordjs/voice");
-const redis = require("redis");
-const {
   getRole,
   getCommunityDetails,
   finalizeActivity,
@@ -22,7 +16,6 @@ var cors = require("cors");
 const bodyParser = require("body-parser");
 const {
   getGuildPerCommunity,
-  getGuildPerKey,
   addGuild,
   insertPoll,
   getAllPolls,
@@ -38,8 +31,8 @@ app.use(bodyParser.json());
 app.post("/poll", (req, res) => postPoll(req, res));
 
 app.listen(6005, () => {
-  connect("mongodb://localhost:27017/bot");
-  console.log(`Example app listening on port 6005`);
+  connect(process.env.MONGODB_CONNECTION_STRING);
+  console.log(`SkillWallet Discord Bot listening on port 6005`);
 });
 
 // constants
@@ -47,7 +40,6 @@ const {
   messages: { prefixes },
   roles: { colors },
 } = config;
-const TOKEN = process.env.TOKEN;
 
 // init
 const bot = new Client({
@@ -58,117 +50,15 @@ const bot = new Client({
     Intents.FLAGS.GUILD_VOICE_STATES,
   ],
 });
-
-const redisClient = redis.createClient({
-  url: "redis://:@redis:6379",
-});
-
-bot.login(TOKEN);
-// redisClient.connect();
+setInterval(() => closePolls(), 1000 * 60 * 60 * 24); // 24 hours!
+bot.login(process.env.TOKEN);
 
 // events actions
 bot.on("ready", () => {
   console.info(`Logged in as ${bot.user.tag}!`);
   closePolls();
-  // joinChannel();
+
 });
-
-// voice state update
-// bot.on("voiceStateUpdate", async (oldState, newState) => {
-//   console.log("voiceStateUpdate");
-//   let currentData = await redisClient.hGet(newState.id);
-//   if (!currentData) {
-//     currentData = {
-//       tokenId: 1,
-//       joinedTimestamp: Date.now(),
-//       totalTimeInTheCall: 0,
-
-//       isMute: newState.selfMute,
-//       totalUnmutedTime: 0,
-//       lastTimeUnmuted: newState.selfMute ? "selfMute" : Date.now(),
-//       // need to set something other than undefined when user is muted
-//       isStreaming: newState.streaming,
-//       lastTimeStreaming: newState.streaming ? Date.now() : "noStream",
-//       totalStreamingTime: 0,
-//     };
-//   }
-//   let guildUserData;
-//   if (newState.voiceChannel) {
-//     guildUserData = {
-//       tokenId: 1,
-//       joinedTimestamp: currentData.joinedTimestamp,
-//       totalTimeInTheCall: currentData.totalTimeInTheCall,
-
-//       isMute: newState.selfMute,
-
-//       totalUnmutedTime:
-//         !currentData.isMute && newState.selfMute
-//           ? currentData.totalUnmutedTime +
-//             (currentData.lastTimeUnmuted
-//               ? new Date() - new Date(currentData.lastTimeUnmuted)
-//               : 0)
-//           : currentData.totalUnmutedTime,
-
-//       lastTimeUnmuted:
-//         currentData.isMute && !newState.selfMute
-//           ? Date.now()
-//           : currentData.lastTimeUnmuted,
-
-//       isStreaming: newState.streaming,
-
-//       totalStreamingTime:
-//         currentData.isStreaming && !newState.isStreaming
-//           ? currentData.totalStreamingTime +
-//             (currentData.lastTimeStreaming
-//               ? new Date() - new Date(currentData.lastTimeStreaming)
-//               : 0)
-//           : currentData.totalStreamingTime,
-
-//       lastTimeStreaming:
-//         !currentData.isStreaming && newState.streaming
-//           ? Date.now()
-//           : currentData.lastTimeStreaming,
-//     };
-//   } else {
-//     console.log("leavinng the call");
-//     console.log("joined", new Date(currentData.joinedTimestamp));
-//     console.log(Date.now() - currentData.joinedTimestamp);
-//     guildUserData = {
-//       tokenId: 1,
-//       joinedTimestamp: currentData.joinedTimestamp,
-//       totalTimeInTheCall:
-//         currentData.totalTimeInTheCall +
-//         (Date.now() - currentData.joinedTimestamp),
-//       isMute: newState.selfMute,
-
-//       totalUnmutedTime: !currentData.isMute
-//         ? currentData.totalUnmutedTime +
-//           (currentData.lastTimeUnmuted
-//             ? new Date() - new Date(currentData.lastTimeUnmuted)
-//             : 0)
-//         : currentData.totalUnmutedTime,
-
-//       lastTimeUnmuted: !currentData.isMute
-//         ? Date.now()
-//         : currentData.lastTimeUnmuted,
-
-//       isStreaming: newState.streaming,
-
-//       totalStreamingTime: currentData.isStreaming
-//         ? currentData.totalStreamingTime +
-//           (currentData.lastTimeStreaming
-//             ? new Date() - new Date(currentData.lastTimeStreaming)
-//             : 0)
-//         : currentData.totalStreamingTime,
-
-//       lastTimeStreaming: !currentData.isStreaming
-//         ? Date.now()
-//         : currentData.lastTimeStreaming,
-//     };
-//   }
-
-//   redisClient.hSet(newState.id, guildUserData);
-// });
 
 // message
 bot.on("messageCreate", async (msg) => {
@@ -206,23 +96,13 @@ bot.on("messageCreate", async (msg) => {
     msg.reply(
       `Please follow this link https://discord.com/api/oauth2/authorize?client_id=898586559228551208&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fredirect&response_type=code&scope=identify`
     );
-  } else if (msg.content === prefixes.getVoiceChatData) {
-    const guildData = voiceChannelEventsStorage.getVoiceChannelData(
-      msg.guild.id
-    );
-    msg.reply(JSON.stringify(guildData));
-  } else if (msg.content === prefixes.clearVoiceChat) {
-    voiceChannelEventsStorage.clear();
   }
 });
 
 async function postPoll(req, res) {
-  console.log(req.body);
   res.sendStatus(200);
   const community = req.body.communityAddress;
   const guildId = await getGuildPerCommunity(community);
-  console.log("guild", guildId);
-  console.log(bot.guilds.cache);
 
   const guild = await bot.guilds.cache.find((guild) => guild.id == guildId);
   const channel = guild.channels.cache.find((c) => c.name == "general");
@@ -280,8 +160,6 @@ async function closePolls() {
   polls.forEach(async (poll) => {
     if (poll.endDate < Date.now()) {
       const guild = await bot.guilds.fetch(poll.guildID);
-      console.log(poll.guildID);
-      console.log(guild ? "guild found" : "no guild");
       const channel = await guild.channels.fetch(poll.channelID);
 
       const message = await channel.messages.fetch(poll.messageID);
@@ -297,14 +175,16 @@ async function closePolls() {
           communityAddr,
           poll.role
         );
-        console.log('relevantDiscordIds', relevantDiscordIds);
-        const userReactionsMapping = await message.reactions.resolve(poll.emojis[i]).users.fetch();
+        console.log("relevantDiscordIds", relevantDiscordIds);
+        const userReactionsMapping = await message.reactions
+          .resolve(poll.emojis[i])
+          .users.fetch();
         var reactedUserIds = Array.from(userReactionsMapping.keys());
-        const relevantReactions = reactedUserIds.filter(value => relevantDiscordIds.includes(value));
+        const relevantReactions = reactedUserIds.filter((value) =>
+          relevantDiscordIds.includes(value)
+        );
 
-        if (
-          reactionWinnerCount < relevantReactions.length
-        ) {
+        if (reactionWinnerCount < relevantReactions.length) {
           reactionWinnerCount = relevantReactions.length;
           reactionWinnerIndex = i;
         }
@@ -333,7 +213,7 @@ async function closePolls() {
         winnersText =
           poll.emojis[reactionWinnerIndex] +
           " (" +
-          (reactionWinnerCount) +
+          reactionWinnerCount +
           " vote(s))\n";
       }
       pollContent.addField("**Winner:**", winnersText);
@@ -344,26 +224,6 @@ async function closePolls() {
     }
   });
 }
-// setInterval(() => closePolls(), 2000);
-
-async function joinChannel() {
-  const channel = bot.channels.cache.get("945762562904055878");
-  const connection = joinVoiceChannel({
-    channelId: channel.id,
-    guildId: channel.guild.id,
-    adapterCreator: channel.guild.voiceAdapterCreator,
-    selfDeaf: false,
-    selfMute: false,
-  });
-  try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 30e3);
-    return connection;
-  } catch (error) {
-    connection.destroy();
-    throw error;
-  }
-}
-
 async function getRelevantDiscordIDs(communityAddr, role) {
   const allMembers = await getSkillWalletsPerCommunity(communityAddr);
   const relevantDiscordIds = [];
