@@ -57,7 +57,6 @@ bot.login(process.env.TOKEN);
 bot.on("ready", () => {
   console.info(`Logged in as ${bot.user.tag}!`);
   closePolls();
-
 });
 
 // message
@@ -96,6 +95,22 @@ bot.on("messageCreate", async (msg) => {
     msg.reply(
       `Please follow this link https://discord.com/api/oauth2/authorize?client_id=898586559228551208&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fredirect&response_type=code&scope=identify`
     );
+  } else if (msg.content === prefixes.swHelp) {
+    const reply = new MessageEmbed()
+      .setTitle("Help")
+      .addField(
+        "/setup",
+        `The first thing you need to do is enter \`/setup\`
+        to import all your community roles, otherwise the bot will not work.`
+      )
+      .addField(
+        "/connect-sw",
+        `Each SkillWallet holder in the community should connect their SkillWallet by
+        entering \`/connect-sw\` so they can vote in polls and receive interactions.`
+      )
+      .addField("/setup {key}", `Not sure what this does.`);
+
+    msg.channel.send({ embeds: [reply] });
   }
 });
 
