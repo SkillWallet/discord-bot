@@ -13,7 +13,7 @@ services:
 
   sw-bot:
     container_name: sw-bot
-    image: node
+    image: node:16
     volumes:
       - .:/app
     working_dir: /app
