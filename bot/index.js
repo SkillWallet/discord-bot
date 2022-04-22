@@ -93,7 +93,7 @@ bot.on("messageCreate", async (msg) => {
       : msg.reply(`No new Roles were found.`);
   } else if (msg.content === prefixes.connectSW) {
     msg.reply(
-      `Please follow this link https://discord.com/api/oauth2/authorize?client_id=898586559228551208&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fredirect&response_type=code&scope=identify`
+      `Please follow this link https://discord.com/api/oauth2/authorize?client_id=898586559228551208&redirect_uri=https%3A%2F%2Fplayground.skillwallet.id%2Fredirect&response_type=code&scope=identify`
     );
   } else if (msg.content === prefixes.swHelp) {
     const reply = new MessageEmbed()
